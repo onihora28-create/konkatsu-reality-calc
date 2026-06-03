@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>婚活リアリティ電卓 — あなたの条件、現実に何人？</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#1a1d24; --card2:#232733; --line:#2e3340;
+    --txt:#e8eaf0; --sub:#9aa3b2; --accent:#ff6b8a; --accent2:#6ba0ff;
+    --good:#4fd18b; --warn:#ffcc66;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+    line-height:1.6;padding-bottom:60px}
+  .wrap{max-width:520px;margin:0 auto;padding:20px 16px}
+  h1{font-size:22px;margin:8px 0 2px;letter-spacing:-.5px}
+  .lead{color:var(--sub);font-size:13px;margin:0 0 20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:16px}
+  label{display:block;font-size:13px;color:var(--sub);margin:14px 0 6px}
+  .seg{display:flex;gap:8px}
+  .seg button{flex:1;padding:10px;border-radius:10px;border:1px solid var(--line);
+    background:var(--card2);color:var(--txt);font-size:14px;cursor:pointer}
+  .seg button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+  .row{display:flex;gap:8px;align-items:center}
+  select,input[type=number]{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);
+    background:var(--card2);color:var(--txt);font-size:15px;appearance:none}
+  .age{display:flex;align-items:center;gap:8px}
+  .age span{color:var(--sub);font-size:13px}
+  .go{width:100%;margin-top:22px;padding:15px;border:none;border-radius:12px;
+    background:linear-gradient(135deg,var(--accent),#ff8e6b);color:#fff;font-size:16px;font-weight:800;cursor:pointer}
+  .go:active{transform:scale(.99)}
+  /* result */
+  #result{display:none}
+  .big{text-align:center;padding:8px 0 4px}
+  .big .lbl{color:var(--sub);font-size:13px}
+  .big .num{font-size:40px;font-weight:900;letter-spacing:-1px;line-height:1.1;margin:4px 0}
+  .big .num small{font-size:18px;font-weight:700;color:var(--sub)}
+  .big .city{font-size:15px;color:var(--accent2);font-weight:700;margin-top:2px}
+  .funnel{margin-top:6px}
+  .frow{margin:9px 0}
+  .frow .ft{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px}
+  .frow .ft b{color:var(--txt)}
+  .bar{height:14px;background:var(--card2);border-radius:7px;overflow:hidden}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:7px;transition:width .6s}
+  .reality{background:var(--card2);border:1px solid var(--line);border-left:3px solid var(--warn);
+    border-radius:10px;padding:13px 14px;margin-top:14px;font-size:14px}
+  .reality b{color:var(--warn);font-size:17px}
+  .rarity{text-align:center;font-size:14px;color:var(--sub);margin-top:10px}
+  .rarity b{color:var(--txt);font-size:16px}
+  .levers .lv{display:flex;justify-content:space-between;align-items:center;
+    background:var(--card2);border-radius:10px;padding:11px 13px;margin:8px 0;font-size:14px}
+  .levers .lv .up{color:var(--good);font-weight:800}
+  .advice{background:linear-gradient(135deg,#2a1f2b,#1f2530);border:1px solid var(--line);
+    border-radius:12px;padding:15px;margin-top:14px;font-size:14px}
+  .advice .h{font-size:12px;color:var(--accent);font-weight:800;letter-spacing:1px;margin-bottom:6px}
+  h3{font-size:14px;color:var(--sub);margin:20px 0 6px;font-weight:700}
+  .foot{color:#6b7280;font-size:11px;line-height:1.7;margin-top:24px}
+  .foot b{color:var(--sub)}
+  .ghost{width:100%;margin-top:10px;padding:13px;border:1px solid var(--line);border-radius:12px;
+    background:transparent;color:var(--sub);font-size:14px;cursor:pointer}
+  .share{width:100%;margin-top:10px;padding:13px;border:none;border-radius:12px;
+    background:var(--card2);color:var(--txt);font-size:14px;font-weight:700;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>婚活リアリティ電卓</h1>
+  <p class="lead">あなたの希望条件に当てはまる未婚者は、現実に何人？ 公開統計からざっくり推定します。</p>
+
+  <div class="card" id="form">
+    <label>あなたの性別</label>
+    <div class="seg" id="me">
+      <button data-v="F" class="on">女性</button>
+      <button data-v="M">男性</button>
+    </div>
+
+    <label>探す相手の年齢</label>
+    <div class="age">
+      <select id="a1"></select><span>〜</span><select id="a2"></select><span>歳</span>
+    </div>
+
+    <label>エリア（都道府県）</label>
+    <select id="pref"></select>
+
+    <label>あなたの市区町村の人口（だいたいでOK）</label>
+    <select id="city">
+      <option value="0">指定しない（都道府県全体で見る）</option>
+      <option value="700000">大都市（70万人規模 / 例:世田谷区・船橋市）</option>
+      <option value="350000">中核市（35万人規模 / 例:柏市・吹田市）</option>
+      <option value="150000" selected>中規模の市（15万人規模）</option>
+      <option value="50000">小規模の市町（5万人規模）</option>
+    </select>
+
+    <label>相手の年収（下限）</label>
+    <select id="inc">
+      <option value="0">こだわらない</option>
+      <option value="400">400万円以上</option>
+      <option value="500">500万円以上</option>
+      <option value="600" selected>600万円以上</option>
+      <option value="700">700万円以上</option>
+      <option value="800">800万円以上</option>
+      <option value="1000">1000万円以上</option>
+    </select>
+
+    <label>相手の身長（下限）</label>
+    <select id="hgt">
+      <option value="0">こだわらない</option>
+      <option value="160">160cm以上</option>
+      <option value="165">165cm以上</option>
+      <option value="170" selected>170cm以上</option>
+      <option value="175">175cm以上</option>
+      <option value="180">180cm以上</option>
+    </select>
+
+    <label>相手の学歴</label>
+    <select id="edu">
+      <option value="0">こだわらない</option>
+      <option value="1" selected>大卒以上</option>
+    </select>
+
+    <label>あなたが1年間に新しく出会う異性の数（ざっくり）</label>
+    <select id="meet">
+      <option value="10">ほぼ無い（年10人）</option>
+      <option value="30" selected>普通に過ごす（年30人）</option>
+      <option value="60">活動的（年60人）</option>
+      <option value="120">かなり活動的（年120人）</option>
+    </select>
+
+    <button class="go" onclick="calc()">現実を見る</button>
+  </div>
+
+  <div class="card" id="result">
+    <div class="big">
+      <div class="lbl" id="rTargetLbl">あなたの条件に合う未婚者</div>
+      <div class="num" id="rPref">—</div>
+      <div class="city" id="rCity"></div>
+    </div>
+
+    <h3>どう絞られたか</h3>
+    <div class="funnel" id="funnel"></div>
+
+    <div class="rarity" id="rarity"></div>
+
+    <div class="reality" id="reality"></div>
+
+    <h3>母数を増やすには（効果の大きい順）</h3>
+    <div class="levers" id="levers"></div>
+
+    <div class="advice">
+      <div class="h">YOUR REALITY CHECK</div>
+      <div id="advice"></div>
+    </div>
+
+    <button class="share" onclick="share()">📤 結果をシェア</button>
+    <button class="ghost" onclick="reset()">条件を変えてやり直す</button>
+
+    <p class="foot">
+      <b>※これは概算です。</b>各条件を独立とみなして掛け合わせる簡易モデルのため、
+      実際の人数とはズレます（特に年収と学歴のように相関する条件は、実際はもう少し多めです）。
+      傾向をつかむ目安としてお使いください。<br>
+      <b>データ出典：</b>総務省「国勢調査(2020)」配偶関係・人口、厚生労働省「賃金構造基本統計調査」年収分布、
+      「国民健康・栄養調査」身長分布、総務省「就業構造基本調査」学歴。婚活手法別の成婚率は各種公開データを参照。
+    </p>
+  </div>
+</div>
+
+<script>
+/* ===== 統計パラメータ（公開統計をもとにした概算） ===== */
+
+// 全国・性別・5歳階級の人口（千人, 概算 2020国勢調査ベース）
+const POP = {
+  M:{20:2950,25:3150,30:3300,35:3650,40:4300,45:4700,50:4300},
+  F:{20:2820,25:3010,30:3160,35:3500,40:4150,45:4560,50:4200}
+};
+// 未婚率（性別・5歳階級, 概算）
+const SINGLE = {
+  M:{20:.92,25:.72,30:.51,35:.38,40:.32,45:.29,50:.26},
+  F:{20:.86,25:.62,30:.39,35:.27,40:.23,45:.21,50:.19}
+};
+// 都道府県人口（千人, 概算）。未掲載は全国平均扱い。
+const PREF = {
+  "北海道":5220,"宮城県":2300,"東京都":14040,"神奈川県":9240,"埼玉県":7340,"千葉県":6280,
+  "愛知県":7550,"大阪府":8840,"京都府":2580,"兵庫県":5470,"福岡県":5130,
+  "静岡県":3630,"広島県":2800,"新潟県":2200,"その他・全国平均":2000
+};
+const NATION = 125700; // 全国人口(千人)
+
+// 男性の年収しきい値→以上の割合（30代男性ベース概算）
+const INCM = {0:1,400:.58,500:.40,600:.23,700:.14,800:.09,1000:.035};
+const INCF = {0:1,400:.40,500:.24,600:.13,700:.07,800:.04,1000:.012};
+
+// 身長: 正規分布近似（男 平均171.0 SD5.8 / 女 平均158.0 SD5.4）
+function pHeight(sex, thr){
+  if(thr<=0) return 1;
+  const m = sex==='M'?171.0:158.0, sd = sex==='M'?5.8:5.4;
+  return 1 - normCdf((thr - m)/sd);
+}
+function normCdf(z){ // 標準正規CDF（誤差関数近似）
+  const t=1/(1+0.2316419*Math.abs(z));
+  const d=0.3989423*Math.exp(-z*z/2);
+  let p=d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));
+  return z>0?1-p:p;
+}
+// 大卒以上の割合（都市部はやや高い, 概算）
+function pEdu(sex,pref){
+  const urban=["東京都","神奈川県","大阪府","京都府","愛知県","千葉県","埼玉県","兵庫県","福岡県"];
+  let base = sex==='M'?0.52:0.50;
+  if(urban.includes(pref)) base += 0.10;
+  return Math.min(base,0.66);
+}
+
+/* ===== UI 初期化 ===== */
+let MY_SEX='F';
+const $=id=>document.getElementById(id);
+for(let a=20;a<=55;a++){
+  $('a1').innerHTML+=`<option value="${a}" ${a==28?'selected':''}>${a}</option>`;
+  $('a2').innerHTML+=`<option value="${a}" ${a==38?'selected':''}>${a}</option>`;
+}
+Object.keys(PREF).forEach(p=>$('pref').innerHTML+=`<option ${p==='東京都'?'selected':''}>${p}</option>`);
+document.querySelectorAll('#me button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#me button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); MY_SEX=b.dataset.v;
+});
+
+/* ===== 推定ロジック ===== */
+function band(age){ return Math.min(50, Math.floor(age/5)*5); } // 5歳階級に丸め
+function popSingle(sex,a1,a2){ // 年齢範囲の未婚人口(人)
+  let n=0;
+  for(let a=a1;a<=a2;a++){
+    const b=band(a);
+    const per=(POP[sex][b]||2000)*1000/5;      // 1歳あたり
+    n += per*(SINGLE[sex][b]||.3);
+  }
+  return n;
+}
+function incRate(sex,v){ return (sex==='M'?INCM:INCF)[v] ?? 1; }
+
+function estimate(o){
+  const sex = o.targetSex;
+  // 全国の未婚（年齢内）→ 都道府県シェア
+  const natSingle = popSingle(sex,o.a1,o.a2);
+  const prefPop = (PREF[o.pref]||2000);
+  const share = prefPop/NATION;
+  const base = natSingle*share;            // 県内・年齢内・未婚
+  const fInc = incRate(sex,o.inc);
+  const fHgt = pHeight(sex,o.hgt);
+  const fEdu = o.edu? pEdu(sex,o.pref):1;
+  const N = base*fInc*fHgt*fEdu;
+  return {base,fInc,fHgt,fEdu,N,share,prefPop};
+}
+
+function jp(n){ // 人数を日本語表記
+  n=Math.round(n);
+  if(n>=10000) return (n/10000).toFixed(n>=100000?0:1)+'万人';
+  if(n>=1000) return (Math.round(n/100)/10)+'千人';
+  return n.toLocaleString()+'人';
+}
+
+function calc(){
+  const targetSex = MY_SEX==='M'?'F':'M';
+  const o={targetSex,
+    a1:+$('a1').value, a2:+$('a2').value, pref:$('pref').value,
+    city:+$('city').value, inc:+$('inc').value, hgt:+$('hgt').value, edu:+$('edu').value,
+    meet:+$('meet').value};
+  if(o.a2<o.a1){ alert('年齢の範囲が逆になっています'); return; }
+  const r=estimate(o);
+  const tword = targetSex==='M'?'男性':'女性';
+  $('rTargetLbl').textContent=`あなたの条件に合う未婚${tword}`;
+  $('rPref').innerHTML=`${o.pref} <small>約</small>${jp(r.N)}`;
+  if(o.city>0){
+    const cityN = r.N*(o.city/(r.prefPop*1000));
+    $('rCity').textContent=`人口${(o.city/10000)}万人規模の街なら 約${jp(cityN)}`;
+  } else $('rCity').textContent='';
+
+  // ファネル
+  const steps=[['未婚'+tword+'（年齢内）',r.base]];
+  let cur=r.base;
+  if(o.inc){ cur*=r.fInc; steps.push([`＋年収${o.inc}万↑`,cur]); }
+  if(o.hgt){ cur*=r.fHgt; steps.push([`＋身長${o.hgt}cm↑`,cur]); }
+  if(o.edu){ cur*=r.fEdu; steps.push([`＋大卒以上`,cur]); }
+  const max=steps[0][1];
+  $('funnel').innerHTML=steps.map(s=>`
+    <div class="frow"><div class="ft"><span>${s[0]}</span><b>約${jp(s[1])}</b></div>
+    <div class="bar"><i style="width:${Math.max(2,s[1]/max*100)}%"></i></div></div>`).join('');
+
+  // 希少度＆出会い期待値
+  const rarity = r.N/r.base; // 同世代未婚の中での割合
+  const oneIn = rarity>0?Math.round(1/rarity):9999;
+  $('rarity').innerHTML = `あなたの条件に合うのは、同世代の未婚${tword}の<br><b>約${(rarity*100).toFixed(1)}％（${oneIn}人に1人）</b>`;
+  const yearMeet = o.meet*0.5; // 異性のうち年齢が近い人の概算
+  const expect = yearMeet*rarity;
+  const expTxt = expect>=1? `約${expect.toFixed(1)}人/年` : `数年に1人ペース（年${expect.toFixed(2)}人）`;
+  $('reality').innerHTML = `⚠️ あなたが普段の生活で出会う人ペースだと、<br>
+    条件に合う相手に出会えるのは <b>${expTxt}</b><br>
+    <span style="color:var(--sub);font-size:12.5px">＝意識的に出会いの数を増やさないと、なかなか巡り会えない希少さです。</span>`;
+
+  // レバー（条件を1段緩めた時の倍率）
+  const levers=[];
+  const incKeys=[0,400,500,600,700,800,1000];
+  if(o.inc){ const i=incKeys.indexOf(o.inc); const nv=incKeys[i-1];
+    const mult=incRate(targetSex,nv)/r.fInc;
+    levers.push([`年収を${nv?nv+'万':'不問'}まで緩める`,mult]); }
+  if(o.hgt){ const hk=[0,160,165,170,175,180]; const i=hk.indexOf(o.hgt); const nv=hk[i-1];
+    const mult=pHeight(targetSex,nv)/r.fHgt;
+    levers.push([`身長を${nv?nv+'cm':'不問'}まで緩める`,mult]); }
+  if(o.edu){ levers.push([`学歴の条件を外す`,1/r.fEdu]); }
+  // 年齢±3歳
+  const wider=estimate({...o,a1:Math.max(20,o.a1-2),a2:Math.min(55,o.a2+3)});
+  levers.push([`年齢を上下に広げる`,wider.N/r.N]);
+  levers.sort((a,b)=>b[1]-a[1]);
+  $('levers').innerHTML=levers.slice(0,3).map(l=>`
+    <div class="lv"><span>💡 ${l[0]}</span><span class="up">＋${Math.round((l[1]-1)*100)}%</span></div>`).join('');
+
+  // 一言アドバイス（ファネルの事実に接地）
+  $('advice').innerHTML = makeAdvice(o,r,levers,rarity,targetSex);
+
+  $('form').style.display='none';
+  $('result').style.display='block';
+  window.scrollTo({top:0,behavior:'smooth'});
+  window._last={o,r,rarity,oneIn,expTxt};
+}
+
+function makeAdvice(o,r,levers,rarity,tsex){
+  const top=levers[0];
+  let msg=[];
+  if(rarity<0.03) msg.push(`条件はかなり絞り込まれていて、該当者は同世代未婚の<b>${(rarity*100).toFixed(1)}％</b>。理想は高いほど出会いは“宝くじ”に近づきます。`);
+  else if(rarity<0.10) msg.push(`そこそこ絞れた条件です（該当${(rarity*100).toFixed(1)}％）。現実的に狙える範囲だけど、待ちの姿勢だと出会いにくい層。`);
+  else msg.push(`条件はわりと現実的（該当${(rarity*100).toFixed(1)}％）。母数より“出会う数”を増やす方が効きそうです。`);
+  if(top && top[1]>1.4) msg.push(`いちばん母数を狭めているのは「${top[0].replace('まで緩める','').replace('を','')}」。ここを一段ゆるめるだけで <b>＋${Math.round((top[1]-1)*100)}％</b> 増えます。`);
+  msg.push(`まずは“1年で出会う人数”を意識的に増やすこと（アプリ・紹介・場の選択）が、条件を変えるより確実なことも多いです。`);
+  return msg.join(' ');
+}
+
+function share(){
+  const d=window._last;
+  const t=`【婚活リアリティ電卓】私の条件だと該当する未婚者は ${d.o.pref}で約${jp(d.r.N)}、同世代の${d.oneIn}人に1人でした。あなたの条件は？`;
+  if(navigator.share){ navigator.share({title:'婚活リアリティ電卓',text:t,url:location.href}); }
+  else { navigator.clipboard.writeText(t+' '+location.href); alert('結果をコピーしました！LINEなどに貼り付けて送れます。'); }
+}
+function reset(){ $('result').style.display='none'; $('form').style.display='block'; window.scrollTo({top:0}); }
+</script>
+</body>
+</html>
