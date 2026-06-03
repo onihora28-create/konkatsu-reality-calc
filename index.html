@@ -84,13 +84,12 @@
     <label>エリア（都道府県）</label>
     <select id="pref"></select>
 
-    <label>あなたの市区町村の人口（だいたいでOK）</label>
-    <select id="city">
-      <option value="0">指定しない（都道府県全体で見る）</option>
-      <option value="700000">大都市（70万人規模 / 例:世田谷区・船橋市）</option>
-      <option value="350000">中核市（35万人規模 / 例:柏市・吹田市）</option>
-      <option value="150000" selected>中規模の市（15万人規模）</option>
-      <option value="50000">小規模の市町（5万人規模）</option>
+    <label>出会いに動ける範囲（あなたの行動圏）</label>
+    <select id="scope">
+      <option value="metro">都市圏まるごと（電車で広く・県外も視野）</option>
+      <option value="pref" selected>都道府県の中で</option>
+      <option value="city">市内・近隣まで</option>
+      <option value="local">地元・狭い範囲だけ</option>
     </select>
 
     <label>相手の年収（下限）</label>
@@ -105,14 +104,7 @@
     </select>
 
     <label>相手の身長（下限）</label>
-    <select id="hgt">
-      <option value="0">こだわらない</option>
-      <option value="160">160cm以上</option>
-      <option value="165">165cm以上</option>
-      <option value="170" selected>170cm以上</option>
-      <option value="175">175cm以上</option>
-      <option value="180">180cm以上</option>
-    </select>
+    <select id="hgt"></select>
 
     <label>相手の学歴</label>
     <select id="edu">
@@ -157,8 +149,9 @@
     <button class="ghost" onclick="reset()">条件を変えてやり直す</button>
 
     <p class="foot">
-      <b>※これは概算です。</b>各条件を独立とみなして掛け合わせる簡易モデルのため、
-      実際の人数とはズレます（特に年収と学歴のように相関する条件は、実際はもう少し多めです）。
+      <b>※これは概算です。</b>「出会いに動ける範囲」で母集団を都市圏〜地元に切り替え、
+      年齢による年収分布の違いと、年収×学歴の相関も簡易補正しています。
+      それでも各条件をほぼ独立に掛け合わせるモデルなので実際の人数とはズレます。
       傾向をつかむ目安としてお使いください。<br>
       <b>データ出典：</b>総務省「国勢調査(2020)」配偶関係・人口、厚生労働省「賃金構造基本統計調査」年収分布、
       「国民健康・栄養調査」身長分布、総務省「就業構造基本調査」学歴。婚活手法別の成婚率は各種公開データを参照。
@@ -187,9 +180,37 @@ const PREF = {
 };
 const NATION = 125700; // 全国人口(千人)
 
-// 男性の年収しきい値→以上の割合（30代男性ベース概算）
+// 都市圏人口（千人, 概算）。「広域＝電車で動ける範囲」を選んだ時の母集団。
+// 首都圏は県外も含めて広がる一方、北海道・宮城は札幌圏・仙台圏に絞られる（県全体は移動が非現実的）。
+const METRO = {
+  "東京都":37000,"神奈川県":37000,"埼玉県":37000,"千葉県":37000,
+  "大阪府":18000,"京都府":18000,"兵庫県":18000,
+  "愛知県":9000,"福岡県":5500,"北海道":2600,"宮城県":1600
+};
+// 行動圏の表示ラベル
+const SCOPE = {metro:'都市圏まるごと（県またぎ）',pref:'都道府県ぜんぶ',city:'市内・近隣',local:'地元・狭い範囲'};
+function scopeLabel(s){ return SCOPE[s]||s; }
+// 行動圏 → 出会える母集団の人口（千人）
+function reachPop(pref, scope){
+  const p = PREF[pref]||2000;
+  if(scope==='metro') return METRO[pref] ?? p;     // 都市圏（県外含む／地方は主要都市圏）
+  if(scope==='city')  return Math.min(p, 500);     // 市内・近隣 ≒ 50万人
+  if(scope==='local') return Math.min(p, 100);     // 地元 ≒ 10万人
+  return p;                                         // pref: 都道府県ぜんぶ
+}
+
+// 年収しきい値→以上の割合（30代ベース概算）。年齢で incAgeFactor を掛けて補正する。
 const INCM = {0:1,400:.58,500:.40,600:.23,700:.14,800:.09,1000:.035};
 const INCF = {0:1,400:.40,500:.24,600:.13,700:.07,800:.04,1000:.012};
+// 年齢による年収補正（30代=1.0基準）。若いほど高収入は希少、40代以降は増える。
+function incAgeFactor(mAge){
+  if(mAge<27) return 0.55;
+  if(mAge<32) return 0.8;
+  if(mAge<37) return 1.0;
+  if(mAge<42) return 1.3;
+  if(mAge<47) return 1.5;
+  return 1.6;
+}
 
 // 身長: 正規分布近似（男 平均171.0 SD5.8 / 女 平均158.0 SD5.4）
 function pHeight(sex, thr){
@@ -219,19 +240,36 @@ for(let a=20;a<=55;a++){
   $('a2').innerHTML+=`<option value="${a}" ${a==38?'selected':''}>${a}</option>`;
 }
 Object.keys(PREF).forEach(p=>$('pref').innerHTML+=`<option ${p==='東京都'?'selected':''}>${p}</option>`);
+
+// 身長の選択肢は「探す相手の性別」で切り替える（相手が女性なら低め、男性なら高め）
+function heightKeys(targetSex){ return targetSex==='M'?[0,165,170,175,180,185]:[0,150,155,160,165,170]; }
+function renderHeight(){
+  const ts = MY_SEX==='M'?'F':'M';                 // 探す相手の性別
+  const def = ts==='M'?175:160;                     // デフォルト下限
+  $('hgt').innerHTML = heightKeys(ts).map(k=>{
+    const lbl = k===0?'こだわらない':`${k}cm以上`;
+    return `<option value="${k}" ${k===def?'selected':''}>${lbl}</option>`;
+  }).join('');
+}
+renderHeight();
+
 document.querySelectorAll('#me button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#me button').forEach(x=>x.classList.remove('on'));
-  b.classList.add('on'); MY_SEX=b.dataset.v;
+  b.classList.add('on'); MY_SEX=b.dataset.v; renderHeight();
 });
 
 /* ===== 推定ロジック ===== */
 function band(age){ return Math.min(50, Math.floor(age/5)*5); } // 5歳階級に丸め
+function popRange(sex,a1,a2){ // 年齢範囲の人口(人, 配偶状態問わず)
+  let n=0;
+  for(let a=a1;a<=a2;a++){ n += (POP[sex][band(a)]||2000)*1000/5; }
+  return n;
+}
 function popSingle(sex,a1,a2){ // 年齢範囲の未婚人口(人)
   let n=0;
   for(let a=a1;a<=a2;a++){
     const b=band(a);
-    const per=(POP[sex][b]||2000)*1000/5;      // 1歳あたり
-    n += per*(SINGLE[sex][b]||.3);
+    n += (POP[sex][b]||2000)*1000/5 * (SINGLE[sex][b]||.3);
   }
   return n;
 }
@@ -239,16 +277,20 @@ function incRate(sex,v){ return (sex==='M'?INCM:INCF)[v] ?? 1; }
 
 function estimate(o){
   const sex = o.targetSex;
-  // 全国の未婚（年齢内）→ 都道府県シェア
-  const natSingle = popSingle(sex,o.a1,o.a2);
-  const prefPop = (PREF[o.pref]||2000);
-  const share = prefPop/NATION;
-  const base = natSingle*share;            // 県内・年齢内・未婚
-  const fInc = incRate(sex,o.inc);
+  const reach = reachPop(o.pref,o.scope);        // 行動圏の人口(千人)
+  const share = reach/NATION;
+  const popAllArea = popRange(sex,20,54)*share;  // 行動圏・全世代の相手性別
+  const popAgeArea = popRange(sex,o.a1,o.a2)*share; // ＋年齢で絞る
+  const base = popSingle(sex,o.a1,o.a2)*share;   // ＋未婚
+  const mAge = (o.a1+o.a2)/2;
+  const fInc = o.inc? Math.min(1, incRate(sex,o.inc)*incAgeFactor(mAge)) : 1;
   const fHgt = pHeight(sex,o.hgt);
   const fEdu = o.edu? pEdu(sex,o.pref):1;
-  const N = base*fInc*fHgt*fEdu;
-  return {base,fInc,fHgt,fEdu,N,share,prefPop};
+  // 年収×学歴は相関する（高年収ほど大卒率が高い）。独立な掛け算は過小評価なので緩く補正。
+  let fIE = fInc*fEdu;
+  if(o.inc && o.edu) fIE = Math.min(Math.min(fInc,fEdu), fIE*1.25);
+  const N = base*fIE*fHgt;
+  return {reach,share,popAllArea,popAgeArea,base,fInc,fHgt,fEdu,fIE,N,mAge};
 }
 
 function jp(n){ // 人数を日本語表記
@@ -262,24 +304,26 @@ function calc(){
   const targetSex = MY_SEX==='M'?'F':'M';
   const o={targetSex,
     a1:+$('a1').value, a2:+$('a2').value, pref:$('pref').value,
-    city:+$('city').value, inc:+$('inc').value, hgt:+$('hgt').value, edu:+$('edu').value,
+    scope:$('scope').value, inc:+$('inc').value, hgt:+$('hgt').value, edu:+$('edu').value,
     meet:+$('meet').value};
   if(o.a2<o.a1){ alert('年齢の範囲が逆になっています'); return; }
   const r=estimate(o);
   const tword = targetSex==='M'?'男性':'女性';
   $('rTargetLbl').textContent=`あなたの条件に合う未婚${tword}`;
-  $('rPref').innerHTML=`${o.pref} <small>約</small>${jp(r.N)}`;
-  if(o.city>0){
-    const cityN = r.N*(o.city/(r.prefPop*1000));
-    $('rCity').textContent=`人口${(o.city/10000)}万人規模の街なら 約${jp(cityN)}`;
-  } else $('rCity').textContent='';
+  $('rPref').innerHTML=`<small>約</small>${jp(r.N)}`;
+  $('rCity').textContent=`想定する出会いの範囲：${scopeLabel(o.scope)}（約${jp(r.reach*1000)}圏）`;
 
-  // ファネル
-  const steps=[['未婚'+tword+'（年齢内）',r.base]];
+  // ファネル（全世代 → 年齢 → 未婚 → 各条件、と段階的に絞る）
+  const steps=[
+    [`${o.pref}の${tword}（20〜54歳）`, r.popAllArea],
+    [`→ ${o.a1}〜${o.a2}歳に絞る`,      r.popAgeArea],
+    [`→ 未婚`,                          r.base],
+  ];
+  const eduEff = o.inc? r.fIE/r.fInc : r.fEdu;   // 学歴ステップ（年収との相関補正込み）
   let cur=r.base;
-  if(o.inc){ cur*=r.fInc; steps.push([`＋年収${o.inc}万↑`,cur]); }
-  if(o.hgt){ cur*=r.fHgt; steps.push([`＋身長${o.hgt}cm↑`,cur]); }
-  if(o.edu){ cur*=r.fEdu; steps.push([`＋大卒以上`,cur]); }
+  if(o.inc){ cur*=r.fInc;  steps.push([`→ 年収${o.inc}万↑`,cur]); }
+  if(o.hgt){ cur*=r.fHgt;  steps.push([`→ 身長${o.hgt}cm↑`,cur]); }
+  if(o.edu){ cur*=eduEff;  steps.push([`→ 大卒以上`,cur]); }
   const max=steps[0][1];
   $('funnel').innerHTML=steps.map(s=>`
     <div class="frow"><div class="ft"><span>${s[0]}</span><b>約${jp(s[1])}</b></div>
@@ -296,21 +340,23 @@ function calc(){
     条件に合う相手に出会えるのは <b>${expTxt}</b><br>
     <span style="color:var(--sub);font-size:12.5px">＝意識的に出会いの数を増やさないと、なかなか巡り会えない希少さです。</span>`;
 
-  // レバー（条件を1段緩めた時の倍率）
+  // レバー（条件を1段緩めた時に母数が何倍になるか。estimateを再実行して正確に算出）
+  const relax = ch => estimate({...o,...ch}).N / r.N;
   const levers=[];
   const incKeys=[0,400,500,600,700,800,1000];
-  if(o.inc){ const i=incKeys.indexOf(o.inc); const nv=incKeys[i-1];
-    const mult=incRate(targetSex,nv)/r.fInc;
-    levers.push([`年収を${nv?nv+'万':'不問'}まで緩める`,mult]); }
-  if(o.hgt){ const hk=[0,160,165,170,175,180]; const i=hk.indexOf(o.hgt); const nv=hk[i-1];
-    const mult=pHeight(targetSex,nv)/r.fHgt;
-    levers.push([`身長を${nv?nv+'cm':'不問'}まで緩める`,mult]); }
-  if(o.edu){ levers.push([`学歴の条件を外す`,1/r.fEdu]); }
-  // 年齢±3歳
-  const wider=estimate({...o,a1:Math.max(20,o.a1-2),a2:Math.min(55,o.a2+3)});
-  levers.push([`年齢を上下に広げる`,wider.N/r.N]);
+  if(o.inc){ const nv=incKeys[incKeys.indexOf(o.inc)-1];
+    levers.push([`年収を${nv?nv+'万':'不問'}まで緩める`, relax({inc:nv})]); }
+  const HK=heightKeys(targetSex);
+  if(o.hgt){ const nv=HK[HK.indexOf(o.hgt)-1] ?? 0;
+    levers.push([`身長を${nv?nv+'cm':'不問'}まで緩める`, relax({hgt:nv})]); }
+  if(o.edu){ levers.push([`学歴の条件を外す`, relax({edu:0})]); }
+  levers.push([`年齢を上下に広げる`, relax({a1:Math.max(20,o.a1-2),a2:Math.min(54,o.a2+3)})]);
+  const scopeOrder=['local','city','pref','metro'];
+  const si=scopeOrder.indexOf(o.scope);
+  if(si>=0 && si<scopeOrder.length-1){ const ns=scopeOrder[si+1];
+    levers.push([`動ける範囲を「${scopeLabel(ns)}」に広げる`, relax({scope:ns})]); }
   levers.sort((a,b)=>b[1]-a[1]);
-  $('levers').innerHTML=levers.slice(0,3).map(l=>`
+  $('levers').innerHTML=levers.filter(l=>l[1]>1.01).slice(0,3).map(l=>`
     <div class="lv"><span>💡 ${l[0]}</span><span class="up">＋${Math.round((l[1]-1)*100)}%</span></div>`).join('');
 
   // 一言アドバイス（ファネルの事実に接地）
