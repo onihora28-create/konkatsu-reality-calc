@@ -112,6 +112,15 @@
       <option value="1" selected>大卒以上</option>
     </select>
 
+    <label>相手の見た目（あなたの主観での希望水準）</label>
+    <select id="look">
+      <option value="0" selected>こだわらない</option>
+      <option value="0.5">人並み以上（上位50%くらい）</option>
+      <option value="0.3">やや上（上位30%）</option>
+      <option value="0.1">かなり可愛い／かっこいい（上位10%）</option>
+      <option value="0.05">トップクラス（上位5%）</option>
+    </select>
+
     <label>あなたが1年間に新しく出会う異性の数（ざっくり）</label>
     <select id="meet">
       <option value="10">ほぼ無い（年10人）</option>
@@ -154,6 +163,8 @@
       年齢による年収分布の違いと、年収×学歴の相関も簡易補正しています。
       それでも各条件をほぼ独立に掛け合わせるモデルなので実際の人数とはズレます。
       傾向をつかむ目安としてお使いください。<br>
+      <b>見た目について：</b>容姿には公的な統計がないため、「あなたの主観で相手のルックスを上位何％に求めるか」を
+      そのまま割合として掛けています（客観的な美醜の人数ではなく、あなたの妥協ラインの厳しさを表します）。<br>
       <b>データ出典：</b>総務省「国勢調査(2020)」配偶関係・人口、厚生労働省「賃金構造基本統計調査」年収分布、
       「国民健康・栄養調査」身長分布、総務省「就業構造基本調査」学歴。婚活手法別の成婚率は各種公開データを参照。
     </p>
@@ -290,8 +301,10 @@ function estimate(o){
   // 年収×学歴は相関する（高年収ほど大卒率が高い）。独立な掛け算は過小評価なので緩く補正。
   let fIE = fInc*fEdu;
   if(o.inc && o.edu) fIE = Math.min(Math.min(fInc,fEdu), fIE*1.25);
-  const N = base*fIE*fHgt;
-  return {reach,share,popAllArea,popAgeArea,base,fInc,fHgt,fEdu,fIE,N,mAge};
+  // 見た目: 公的統計が無いため「あなたの主観で上位何％を求めるか」をそのまま割合として掛ける
+  const fLook = o.look>0 ? o.look : 1;
+  const N = base*fIE*fHgt*fLook;
+  return {reach,share,popAllArea,popAgeArea,base,fInc,fHgt,fEdu,fIE,fLook,N,mAge};
 }
 
 function jp(n){ // 人数を日本語表記
@@ -306,7 +319,7 @@ function calc(){
   const o={targetSex,
     a1:+$('a1').value, a2:+$('a2').value, pref:$('pref').value,
     scope:$('scope').value, inc:+$('inc').value, hgt:+$('hgt').value, edu:+$('edu').value,
-    meet:+$('meet').value};
+    look:+$('look').value, meet:+$('meet').value};
   if(o.a2<o.a1){ alert('年齢の範囲が逆になっています'); return; }
   const r=estimate(o);
   const tword = targetSex==='M'?'男性':'女性';
@@ -325,6 +338,7 @@ function calc(){
   if(o.inc){ cur*=r.fInc;  steps.push([`→ 年収${o.inc}万↑`,cur]); }
   if(o.hgt){ cur*=r.fHgt;  steps.push([`→ 身長${o.hgt}cm↑`,cur]); }
   if(o.edu){ cur*=eduEff;  steps.push([`→ 大卒以上`,cur]); }
+  if(o.look){ cur*=r.fLook; steps.push([`→ 見た目 上位${Math.round(o.look*100)}%`,cur]); }
   const max=steps[0][1];
   $('funnel').innerHTML=steps.map(s=>`
     <div class="frow"><div class="ft"><span>${s[0]}</span><b>約${jp(s[1])}</b></div>
@@ -367,6 +381,9 @@ function calc(){
   if(o.hgt){ const nv=HK[HK.indexOf(o.hgt)-1] ?? 0;
     levers.push([`身長を${nv?nv+'cm':'不問'}まで緩める`, relax({hgt:nv})]); }
   if(o.edu){ levers.push([`学歴の条件を外す`, relax({edu:0})]); }
+  const lookLooser={0.05:0.1, 0.1:0.3, 0.3:0.5, 0.5:0};
+  if(o.look){ const nv=lookLooser[o.look];
+    levers.push([`見た目を${nv?'上位'+Math.round(nv*100)+'%':'不問'}まで緩める`, relax({look:nv})]); }
   levers.push([`年齢を上下に広げる`, relax({a1:Math.max(20,o.a1-2),a2:Math.min(54,o.a2+3)})]);
   const scopeOrder=['local','city','pref','metro'];
   const si=scopeOrder.indexOf(o.scope);
